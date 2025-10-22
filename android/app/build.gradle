@@ -10,7 +10,6 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // ✅ Desugaring için gerekli
         coreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -30,6 +29,10 @@ android {
 
     buildTypes {
         release {
+            // Minify'ı kapat - APK biraz büyük olur ama sorunsuz çalışır
+            minifyEnabled false
+            shrinkResources false
+            
             signingConfig = signingConfigs.debug
         }
     }
@@ -39,7 +42,6 @@ flutter {
     source = "../.."
 }
 
-// ✅ Desugaring dependency
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }

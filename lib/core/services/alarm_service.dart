@@ -1,5 +1,5 @@
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
-import 'notification_service.dart';
+import 'package:flutter/services.dart';
 
 class AlarmService {
   static final AlarmService _instance = AlarmService._internal();
@@ -8,37 +8,58 @@ class AlarmService {
 
   static const int _startAlarmId = 100;
   static const int _stopAlarmId = 101;
+  static bool _useRootShutdown = false;
 
   Future<void> initialize() async {
     await AndroidAlarmManager.initialize();
   }
 
-  // Alarm callback'leri (static olmalı)
-  @pragma('vm:entry-point')
-  static void startSlideshowCallback() {
-    print('🎬 Start slideshow alarm triggered!');
-    NotificationService().showSlideshowStartNotification();
-    // TODO: Slideshow'u başlat
+  void setRootShutdown(bool value) {
+    _useRootShutdown = value;
   }
 
+  // START CALLBACK - Basit tutuyoruz, sadece native kod
+  @pragma('vm:entry-point')
+  static void startSlideshowCallback() {
+    print('🎬 START ALARM TRIGGERED!');
+
+    // MethodChannel ile native koda gönder
+    const platform = MethodChannel('com.digitalframe/alarm');
+    try {
+      platform.invokeMethod('onStartAlarm');
+    } catch (e) {
+      print('❌ Start callback error: $e');
+    }
+  }
+
+  // STOP CALLBACK - Basit tutuyoruz, sadece native kod
   @pragma('vm:entry-point')
   static void stopSlideshowCallback() {
-    print('⏹️ Stop slideshow alarm triggered!');
-    NotificationService().showSlideshowStopNotification();
-    // TODO: Slideshow'u durdur
+    print('⏹️ STOP ALARM TRIGGERED!');
+
+    // MethodChannel ile native koda gönder
+    const platform = MethodChannel('com.digitalframe/alarm');
+    try {
+      // Root shutdown flag'ini de gönder
+      platform
+          .invokeMethod('onStopAlarm', {'useRootShutdown': _useRootShutdown});
+    } catch (e) {
+      print('❌ Stop callback error: $e');
+    }
   }
 
   Future<void> scheduleAlarms({
     required String startTime,
     required String endTime,
+    required bool useRootShutdown,
   }) async {
-    // Parse times
+    _useRootShutdown = useRootShutdown;
+    setRootShutdown(useRootShutdown);
+
     final startParts = startTime.split(':');
     final endParts = endTime.split(':');
-
     final now = DateTime.now();
 
-    // Start time
     var startDateTime = DateTime(
       now.year,
       now.month,
@@ -47,12 +68,10 @@ class AlarmService {
       int.parse(startParts[1]),
     );
 
-    // Eğer start time geçmişse, yarına ayarla
     if (startDateTime.isBefore(now)) {
       startDateTime = startDateTime.add(const Duration(days: 1));
     }
 
-    // End time
     var endDateTime = DateTime(
       now.year,
       now.month,
@@ -61,12 +80,10 @@ class AlarmService {
       int.parse(endParts[1]),
     );
 
-    // Eğer end time geçmişse, yarına ayarla
     if (endDateTime.isBefore(now)) {
       endDateTime = endDateTime.add(const Duration(days: 1));
     }
 
-    // Schedule start alarm (günlük tekrar)
     await AndroidAlarmManager.periodic(
       const Duration(days: 1),
       _startAlarmId,
@@ -77,7 +94,6 @@ class AlarmService {
       rescheduleOnReboot: true,
     );
 
-    // Schedule stop alarm (günlük tekrar)
     await AndroidAlarmManager.periodic(
       const Duration(days: 1),
       _stopAlarmId,
@@ -89,18 +105,14 @@ class AlarmService {
     );
 
     print('✅ Alarms scheduled:');
-    print('   Start: $startDateTime');
-    print('   Stop: $endDateTime');
+    print('   Start: $startDateTime → Ekranı aç + Notification göster');
+    print(
+        '   Stop: $endDateTime → Ekranı karart ${useRootShutdown ? "+ Cihazı kapat" : ""}');
   }
 
   Future<void> cancelAlarms() async {
     await AndroidAlarmManager.cancel(_startAlarmId);
     await AndroidAlarmManager.cancel(_stopAlarmId);
     print('❌ Alarms cancelled');
-  }
-
-  Future<bool> hasScheduledAlarms() async {
-    // Bu method tam olarak çalışmayabilir, alternatif kontrol gerekebilir
-    return true; // Şimdilik her zaman true döndür
   }
 }

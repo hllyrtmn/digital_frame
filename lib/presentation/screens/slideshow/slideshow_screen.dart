@@ -18,31 +18,27 @@ class SlideshowScreen extends ConsumerStatefulWidget {
 class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Timer? _timer;
   int _currentIndex = 0;
-  bool _isPlaying = true;
-  bool _showControls = true;
-  Timer? _controlsTimer;
+  int _tapCount = 0;
+  Timer? _doubleTapTimer;
 
   @override
   void initState() {
     super.initState();
 
-    // Tam ekran yap
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+    // TAM EKRAN - Hiçbir şey görünmesin
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
     // Ekranı açık tut
     WakelockPlus.enable();
 
     // Auto-play başlat
     _startAutoPlay();
-
-    // Kontrolleri otomatik gizle
-    _startControlsTimer();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _controlsTimer?.cancel();
+    _doubleTapTimer?.cancel();
 
     // Normal moda dön
     SystemChrome.setEnabledSystemUIMode(
@@ -54,24 +50,6 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     WakelockPlus.disable();
 
     super.dispose();
-  }
-
-  void _startControlsTimer() {
-    _controlsTimer?.cancel();
-    _controlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _showControls = false;
-        });
-      }
-    });
-  }
-
-  void _showControlsTemporarily() {
-    setState(() {
-      _showControls = true;
-    });
-    _startControlsTimer();
   }
 
   void _startAutoPlay() {
@@ -91,36 +69,19 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     );
   }
 
-  void _stopAutoPlay() {
-    _timer?.cancel();
-  }
+  // ÇİFT TIKLA - Menüye Dön
+  void _handleTap() {
+    _tapCount++;
 
-  void _goToNext() {
-    final photos = ref.read(photoProvider);
-    setState(() {
-      _currentIndex = (_currentIndex + 1) % photos.length;
-    });
-    _showControlsTemporarily();
-  }
-
-  void _goToPrevious() {
-    final photos = ref.read(photoProvider);
-    setState(() {
-      _currentIndex = (_currentIndex - 1 + photos.length) % photos.length;
-    });
-    _showControlsTemporarily();
-  }
-
-  void _togglePlayPause() {
-    setState(() {
-      _isPlaying = !_isPlaying;
-      if (_isPlaying) {
-        _startAutoPlay();
-      } else {
-        _stopAutoPlay();
-      }
-    });
-    _showControlsTemporarily();
+    if (_tapCount == 1) {
+      _doubleTapTimer = Timer(const Duration(milliseconds: 300), () {
+        _tapCount = 0;
+      });
+    } else if (_tapCount == 2) {
+      _doubleTapTimer?.cancel();
+      _tapCount = 0;
+      Navigator.pop(context); // Menüye dön
+    }
   }
 
   @override
@@ -151,48 +112,24 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
-        onTap: _showControlsTemporarily,
-        onHorizontalDragEnd: (details) {
-          // Swipe gesture
-          if (details.primaryVelocity! > 0) {
-            _goToPrevious();
-          } else if (details.primaryVelocity! < 0) {
-            _goToNext();
-          }
-        },
-        child: Stack(
-          children: [
-            // Slideshow with AnimatedSwitcher
-            Center(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 800),
-                switchInCurve: Curves.easeInOut,
-                switchOutCurve: Curves.easeInOut,
-                transitionBuilder: (child, animation) {
-                  return _buildTransition(
-                    child,
-                    animation,
-                    settings.transitionEffect,
-                  );
-                },
-                child: _buildPhotoWidget(photos[_currentIndex]),
-              ),
-            ),
-
-            // Controls overlay
-            AnimatedOpacity(
-              opacity: _showControls ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: _buildControls(photos.length),
-            ),
-          ],
+        onTap: _handleTap, // Çift tıklama kontrolü
+        child: Center(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 800),
+            switchInCurve: Curves.easeInOut,
+            switchOutCurve: Curves.easeInOut,
+            transitionBuilder: (child, animation) {
+              return _buildTransition(
+                  child, animation, settings.transitionEffect);
+            },
+            child: _buildPhotoWidget(photos[_currentIndex]),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildPhotoWidget(PhotoModel photo) {
-    // Key önemli! AnimatedSwitcher'ın ne zaman değiştiğini anlaması için
     return Container(
       key: ValueKey(photo.id),
       color: Colors.black,
@@ -216,141 +153,25 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       Widget child, Animation<double> animation, String effect) {
     switch (effect) {
       case 'fade':
-        return FadeTransition(
-          opacity: animation,
-          child: child,
-        );
-
+        return FadeTransition(opacity: animation, child: child);
       case 'slide':
         return SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1.0, 0.0),
             end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeInOut,
-          )),
+          ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeInOut)),
           child: child,
         );
-
       case 'zoom':
         return ScaleTransition(
-          scale: Tween<double>(
-            begin: 0.8,
-            end: 1.0,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeInOut,
-          )),
-          child: FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
+          scale: Tween<double>(begin: 0.8, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeInOut)),
+          child: FadeTransition(opacity: animation, child: child),
         );
-
       case 'none':
       default:
         return child;
     }
-  }
-
-  Widget _buildControls(int photoCount) {
-    return Stack(
-      children: [
-        // Top bar - Photo counter
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withOpacity(0.7),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${_currentIndex + 1} / $photoCount',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 10,
-                        color: Colors.black,
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white, size: 28),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // Bottom bar - Controls
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [
-                  Colors.black.withOpacity(0.7),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.skip_previous,
-                      color: Colors.white, size: 32),
-                  onPressed: _goToPrevious,
-                ),
-                const SizedBox(width: 16),
-                Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white24,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      _isPlaying ? Icons.pause : Icons.play_arrow,
-                      color: Colors.white,
-                      size: 36,
-                    ),
-                    onPressed: _togglePlayPause,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                IconButton(
-                  icon: const Icon(Icons.skip_next,
-                      color: Colors.white, size: 32),
-                  onPressed: _goToNext,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }

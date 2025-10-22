@@ -1,5 +1,7 @@
+import 'package:flutter/material.dart'; // ✅ Navigator için
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../main.dart'; // ✅ navigatorKey için - EN ÜSTTE
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -10,7 +12,6 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   Future<void> initialize() async {
-    // Android settings
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -23,7 +24,6 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTap,
     );
 
-    // Request permission (Android 13+)
     await _requestPermission();
   }
 
@@ -36,7 +36,19 @@ class NotificationService {
 
   void _onNotificationTap(NotificationResponse response) {
     print('Notification tapped: ${response.payload}');
-    // Burada slideshow başlatma logic'i gelecek
+
+    if (response.payload == 'start_slideshow') {
+      // Slideshow'u başlat
+      _openSlideshow();
+    }
+  }
+
+  void _openSlideshow() {
+    // Global navigator key kullanarak slideshow'u aç
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      Navigator.pushNamed(context, '/slideshow');
+    }
   }
 
   Future<void> showSlideshowStartNotification() async {
@@ -47,6 +59,7 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       showWhen: false,
+      autoCancel: true,
     );
 
     const details = NotificationDetails(android: androidDetails);
@@ -54,7 +67,7 @@ class NotificationService {
     await _notifications.show(
       0,
       'Digital Frame',
-      'Slayt gösterisi başlatılıyor...',
+      'Slayt gösterisi başlatılıyor... Dokun!',
       details,
       payload: 'start_slideshow',
     );
@@ -75,9 +88,8 @@ class NotificationService {
     await _notifications.show(
       1,
       'Digital Frame',
-      'Slayt gösterisi durduruldu',
+      'Ekran kapatıldı. Yarın görüşürüz! 😴',
       details,
-      payload: 'stop_slideshow',
     );
   }
 

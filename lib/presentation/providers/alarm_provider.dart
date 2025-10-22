@@ -18,20 +18,21 @@ final servicesInitProvider = FutureProvider<void>((ref) async {
 // Schedule/Cancel alarms based on settings
 class AlarmNotifier extends StateNotifier<bool> {
   final AlarmService _alarmService;
-  final SettingsNotifier _settingsNotifier;
+  final Ref _ref;
 
-  AlarmNotifier(this._alarmService, this._settingsNotifier) : super(false);
+  AlarmNotifier(this._alarmService, this._ref) : super(false);
 
   Future<void> updateAlarms() async {
-    final settings = _settingsNotifier.state;
+    final settings = _ref.read(settingsProvider);
 
     if (settings.autoStartEnabled &&
         settings.startTime != null &&
         settings.endTime != null) {
-      // Schedule alarms
+      // Schedule alarms - useRootShutdown parametresini ekle
       await _alarmService.scheduleAlarms(
         startTime: settings.startTime!,
         endTime: settings.endTime!,
+        useRootShutdown: settings.useRootShutdown, // ✅ EKLENDI
       );
       state = true;
     } else {
@@ -49,6 +50,5 @@ class AlarmNotifier extends StateNotifier<bool> {
 
 final alarmNotifierProvider = StateNotifierProvider<AlarmNotifier, bool>((ref) {
   final alarmService = ref.watch(alarmServiceProvider);
-  final settingsNotifier = ref.watch(settingsProvider.notifier);
-  return AlarmNotifier(alarmService, settingsNotifier);
+  return AlarmNotifier(alarmService, ref);
 });

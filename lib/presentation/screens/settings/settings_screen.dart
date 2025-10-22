@@ -4,6 +4,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/alarm_provider.dart';
 import '../../providers/power_provider.dart';
+import 'package:flutter/services.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -327,6 +328,124 @@ class SettingsScreen extends ConsumerWidget {
                       '• Ekran kapatma özelliği enerji tasarrufu sağlar\n'
                       '• Alarmlar cihaz yeniden başlatıldığında otomatik ayarlanır',
                       style: TextStyle(fontSize: 13, height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          const Divider(height: 32),
+
+          // 🧪 DEBUG TEST SECTION
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Card(
+              color: Colors.orange[50],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.bug_report, color: Colors.orange[700]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Test Butonları',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Test Start
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        const platform =
+                            MethodChannel('com.digitalframe/alarm');
+                        try {
+                          await platform.invokeMethod('onStartAlarm');
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content:
+                                    Text('✅ START ALARM manuel tetiklendi!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('❌ Hata: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('TEST: Slideshow Başlat'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Test Stop
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        const platform =
+                            MethodChannel('com.digitalframe/alarm');
+                        try {
+                          await platform.invokeMethod('onStopAlarm',
+                              {'useRootShutdown': settings.useRootShutdown});
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content:
+                                    Text('✅ STOP ALARM manuel tetiklendi!'),
+                                backgroundColor: Colors.blue,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('❌ Hata: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.stop),
+                      label:
+                          const Text('TEST: Slideshow Durdur + Ekran Karart'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+                    Text(
+                      'Bu butonlar alarm\'ın yapacağı işlemi manuel test eder. '
+                      'Eğer çalışırsa native kod OK, sorun alarm schedule\'da.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange[800],
+                      ),
                     ),
                   ],
                 ),
