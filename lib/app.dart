@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/slideshow/slideshow_screen.dart';
 import 'presentation/providers/alarm_provider.dart';
+import 'presentation/providers/photo_provider.dart';
 import 'main.dart';
 
 class DigitalFrameApp extends ConsumerStatefulWidget {
@@ -22,10 +23,24 @@ class _DigitalFrameAppState extends ConsumerState<DigitalFrameApp> {
     // Alarm kanalını dinle
     const platform = MethodChannel('com.digitalframe/alarm');
     platform.setMethodCallHandler((call) async {
+      print('📞 Flutter received: ${call.method}');
+
       if (call.method == 'autoStartSlideshow') {
-        // Slideshow'u otomatik aç
+        print('🎬 Auto-starting slideshow in Flutter!');
+
+        // Fotoğraf var mı kontrol et
+        final photos = ref.read(photoProvider);
+        if (photos.isEmpty) {
+          print('❌ No photos to show');
+          return;
+        }
+
+        // Slideshow'u aç
+        await Future.delayed(const Duration(milliseconds: 500));
         final context = navigatorKey.currentContext;
-        if (context != null) {
+        if (context != null && mounted) {
+          print('✅ Navigating to slideshow...');
+          // ignore: use_build_context_synchronously
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const SlideshowScreen()),
             (route) => false,

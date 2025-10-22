@@ -14,8 +14,8 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity: FlutterActivity() {
-    private val POWER_CHANNEL = "com.digital_frame/power"
-    private val ALARM_CHANNEL = "com.digital_frame/alarm"
+    private val POWER_CHANNEL = "com.digitalframe/power"
+    private val ALARM_CHANNEL = "com.digitalframe/alarm"
     private var originalBrightness: Float = -1f
 
     companion object {
@@ -29,8 +29,10 @@ class MainActivity: FlutterActivity() {
         
         createNotificationChannel()
         
-        // Power Management Channel
+        // POWER CHANNEL
+        Log.d("DigitalFrame", "📡 Setting up POWER channel...")
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, POWER_CHANNEL).setMethodCallHandler { call, result ->
+            Log.d("DigitalFrame", "📞 Method called: ${call.method}")
             when (call.method) {
                 "setScreenBrightness" -> {
                     val brightness = call.argument<Double>("brightness") ?: 1.0
@@ -46,34 +48,47 @@ class MainActivity: FlutterActivity() {
                     result.success(null)
                 }
                 "isRooted" -> {
-                    result.success(isDeviceRooted())
+                    val rooted = isDeviceRooted()
+                    Log.d("DigitalFrame", "Root status: $rooted")
+                    result.success(rooted)
                 }
                 "shutdownDevice" -> {
                     shutdownDevice()
                     result.success(null)
                 }
-                else -> result.notImplemented()
+                else -> {
+                    Log.d("DigitalFrame", "❌ Unknown POWER method: ${call.method}")
+                    result.notImplemented()
+                }
             }
         }
 
-        // Alarm Channel
+        // ALARM CHANNEL
+        Log.d("DigitalFrame", "📡 Setting up ALARM channel...")
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ALARM_CHANNEL).setMethodCallHandler { call, result ->
+            Log.d("DigitalFrame", "🔔 ALARM Method called: ${call.method}")
             when (call.method) {
                 "onStartAlarm" -> {
+                    Log.d("DigitalFrame", "🎬 onStartAlarm received!")
                     handleStartAlarm()
                     result.success(null)
                 }
                 "onStopAlarm" -> {
+                    Log.d("DigitalFrame", "⏹️ onStopAlarm received!")
                     val useRootShutdown = call.argument<Boolean>("useRootShutdown") ?: false
                     handleStopAlarm(useRootShutdown)
                     result.success(null)
                 }
-                else -> result.notImplemented()
+                else -> {
+                    Log.d("DigitalFrame", "❌ Unknown ALARM method: ${call.method}")
+                    result.notImplemented()
+                }
             }
         }
+        
+        Log.d("DigitalFrame", "✅ All channels configured!")
     }
 
-    // Intent'ten gelen flag'leri kontrol et
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -89,10 +104,8 @@ class MainActivity: FlutterActivity() {
         intent?.let {
             if (it.getBooleanExtra("AUTO_START_SLIDESHOW", false)) {
                 Log.d("DigitalFrame", "🎬 Auto-starting slideshow from alarm!")
-                // Flag'i temizle (tekrar tetiklememek için)
                 it.removeExtra("AUTO_START_SLIDESHOW")
                 
-                // Flutter'a slideshow başlat mesajı gönder
                 flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
                     MethodChannel(messenger, ALARM_CHANNEL).invokeMethod("autoStartSlideshow", null)
                 }
@@ -112,19 +125,15 @@ class MainActivity: FlutterActivity() {
             
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+            Log.d("DigitalFrame", "✅ Notification channel created")
         }
     }
 
     private fun handleStartAlarm() {
         Log.d("DigitalFrame", "🎬 START ALARM - Handling...")
         
-        // Ekranı aç
         turnScreenOn()
-        
-        // Uygulamayı aç ve slideshow'u başlat
         openAppAndStartSlideshow()
-        
-        // Notification göster (bilgilendirme için)
         showStartNotification()
     }
 
@@ -146,13 +155,9 @@ class MainActivity: FlutterActivity() {
     private fun handleStopAlarm(useRootShutdown: Boolean) {
         Log.d("DigitalFrame", "⏹️ STOP ALARM - Handling...")
         
-        // Ekranı karart
         turnScreenOff()
-        
-        // Notification göster
         showStopNotification()
         
-        // Root shutdown varsa
         if (useRootShutdown) {
             Log.d("DigitalFrame", "🔌 ROOT SHUTDOWN!")
             shutdownDevice()
@@ -166,7 +171,7 @@ class MainActivity: FlutterActivity() {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("Digital Frame")
             .setContentText("Slayt gösterisi başlatıldı! 🎬")
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
         
@@ -195,9 +200,9 @@ class MainActivity: FlutterActivity() {
             if (originalBrightness < 0) originalBrightness = layoutParams.screenBrightness
             layoutParams.screenBrightness = brightness
             window.attributes = layoutParams
-            Log.d("DigitalFrame", "✅ Brightness: $brightness")
+            Log.d("DigitalFrame", "✅ Brightness set to: $brightness")
         } catch (e: Exception) {
-            Log.e("DigitalFrame", "❌ Error: ${e.message}")
+            Log.e("DigitalFrame", "❌ Error setting brightness: ${e.message}")
         }
     }
 
@@ -207,7 +212,7 @@ class MainActivity: FlutterActivity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             Log.d("DigitalFrame", "✅ Screen turned off")
         } catch (e: Exception) {
-            Log.e("DigitalFrame", "❌ Error: ${e.message}")
+            Log.e("DigitalFrame", "❌ Error turning screen off: ${e.message}")
         }
     }
 
@@ -226,7 +231,6 @@ class MainActivity: FlutterActivity() {
                 WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
             )
             
-            // Android 8.0+ için ekstra ayarlar
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 setShowWhenLocked(true)
                 setTurnScreenOn(true)
@@ -234,7 +238,7 @@ class MainActivity: FlutterActivity() {
             
             Log.d("DigitalFrame", "✅ Screen turned on")
         } catch (e: Exception) {
-            Log.e("DigitalFrame", "❌ Error: ${e.message}")
+            Log.e("DigitalFrame", "❌ Error turning screen on: ${e.message}")
         }
     }
 
@@ -246,9 +250,9 @@ class MainActivity: FlutterActivity() {
     private fun shutdownDevice() {
         try {
             Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot -p"))
-            Log.d("DigitalFrame", "✅ Shutdown executed")
+            Log.d("DigitalFrame", "✅ Shutdown command executed")
         } catch (e: Exception) {
-            Log.e("DigitalFrame", "❌ Shutdown failed: ${e.message}")
+            Log.e("DigitalFrame", "❌ Error shutting down: ${e.message}")
         }
     }
 }
