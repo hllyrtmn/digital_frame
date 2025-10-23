@@ -18,7 +18,7 @@ class SlideshowScreen extends ConsumerStatefulWidget {
 
 class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   Timer? _timer;
-  Timer? _timeCheckTimer; // ✅ YENİ: Saat kontrolü için timer
+  Timer? _timeCheckTimer;
   int _currentIndex = 0;
   int _tapCount = 0;
   Timer? _doubleTapTimer;
@@ -27,9 +27,11 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
   void initState() {
     super.initState();
 
+    print('🎬 Slideshow başlatılıyor...');
+
     // Saat aralığını kontrol et - çalışma saatinde miyiz?
     if (!_isWithinScheduledTime()) {
-      // Eğer çalışma saati dışındaysa, slideshow'u başlatma
+      print('⏰ Slideshow saat aralığı dışında başlatılmaya çalışıldı');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -43,7 +45,9 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
       return;
     }
 
-    // TAM EKRAN - Hiçbir şey görünmesin
+    print('✅ Saat aralığı uygun, slideshow başlatılıyor');
+
+    // TAM EKRAN
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
     // Ekranı açık tut
@@ -52,14 +56,14 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     // Auto-play başlat
     _startAutoPlay();
 
-    // ✅ YENİ: Her dakika saat kontrolü yap
+    // Her dakika saat kontrolü yap
     _startTimeCheck();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _timeCheckTimer?.cancel(); // ✅ YENİ
+    _timeCheckTimer?.cancel();
     _doubleTapTimer?.cancel();
 
     // Normal moda dön
@@ -74,7 +78,6 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     super.dispose();
   }
 
-  // ✅ YENİ: Saat kontrolü başlat
   void _startTimeCheck() {
     _timeCheckTimer?.cancel();
 
@@ -82,15 +85,17 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _timeCheckTimer = Timer.periodic(
       const Duration(minutes: 1),
       (timer) {
+        final now = DateTime.now();
+        print('⏰ Zaman kontrolü: ${now.hour}:${now.minute}');
+
         if (!_isWithinScheduledTime()) {
-          print('⏰ Bitiş saatine ulaşıldı, slayt gösterisi kapatılıyor...');
+          print('🛑 Bitiş saatine ulaşıldı, slideshow kapatılıyor...');
           _stopSlideshowAndDim();
         }
       },
     );
   }
 
-  // ✅ YENİ: Belirlenen saat aralığında mı kontrol et
   bool _isWithinScheduledTime() {
     final settings = ref.read(settingsProvider);
 
@@ -111,7 +116,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     final endTime = _parseTime(settings.endTime!);
 
     if (startTime == null || endTime == null) {
-      return true; // Parse edilemezse çalışsın
+      return true;
     }
 
     // Saat karşılaştırması
@@ -121,7 +126,6 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
 
     // Eğer bitiş saati başlangıçtan küçükse (örn: 22:00 - 08:00)
     if (endMinutes < startMinutes) {
-      // Gece yarısını geçen durum
       return currentMinutes >= startMinutes || currentMinutes < endMinutes;
     } else {
       // Normal durum (örn: 08:00 - 22:00)
@@ -129,7 +133,6 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
   }
 
-  // ✅ YENİ: Zamanı parse et
   TimeOfDay? _parseTime(String timeString) {
     try {
       final parts = timeString.split(':');
@@ -143,22 +146,53 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     }
   }
 
-  // ✅ YENİ: Slayt gösterisini durdur ve ekranı karart
+  // ✅ DÜZELTİLDİ: Bitiş saatinde alarm callback'inin çalışmasını sağla
   Future<void> _stopSlideshowAndDim() async {
+    print('⏹️ Flutter: Slideshow bitiş saatine ulaşıldı');
+
     // Timer'ları durdur
     _timer?.cancel();
     _timeCheckTimer?.cancel();
 
-    // Ekranı karart
-    try {
-      await ref.read(powerNotifierProvider.notifier).turnScreenOff();
-    } catch (e) {
-      print('Ekran kapatma hatası: $e');
+    final settings = ref.read(settingsProvider);
+
+    // Eğer otomatik başlatma KAPALI ise, ekranı kendimiz karalt/kilitle
+    // (Çünkü alarm callback'i schedule edilmemiş, çalışmayacak)
+    if (!settings.autoStartEnabled) {
+      print('💡 Otomatik başlatma kapalı - Ekranı kontrol ediyoruz');
+      try {
+        // Device Admin kontrolü yap
+        final powerNotifier = ref.read(powerNotifierProvider.notifier);
+        final powerState = ref.read(powerNotifierProvider);
+        final isDeviceAdminActive =
+            powerState['isDeviceAdminActive'] as bool? ?? false;
+
+        if (isDeviceAdminActive) {
+          print('🔒 Device Admin aktif - Ekranı kilitliyoruz');
+          await powerNotifier.lockScreen();
+        } else {
+          print('💡 Device Admin yok - Ekranı karartıyoruz');
+          await powerNotifier.turnScreenOff();
+        }
+      } catch (e) {
+        print('❌ Ekran kontrolü hatası: $e');
+      }
+    } else {
+      // Otomatik başlatma AÇIK ise:
+      // - Alarm callback'i zaten schedule edilmiş
+      // - Bitiş saatinde alarm tetiklenecek
+      // - MainActivity'deki handleStopAlarm() ekranı kontrol edecek
+      // - Biz sadece slideshow UI'sini kapatıyoruz
+      print(
+          '⏰ Otomatik başlatma açık - Alarm callback\'i ekranı kontrol edecek');
+      print(
+          '   (MainActivity.handleStopAlarm() Device Admin kontrolü yapacak)');
     }
 
     // Ekrandan çık
     if (mounted) {
       Navigator.pop(context);
+      print('✅ Slideshow ekranı kapatıldı');
     }
   }
 
@@ -169,7 +203,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     _timer = Timer.periodic(
       Duration(seconds: settings.transitionDuration),
       (timer) {
-        // ✅ YENİ: Her fotoğraf değişiminde de saat kontrolü yap
+        // Her fotoğraf değişiminde de saat kontrolü yap
         if (!_isWithinScheduledTime()) {
           _stopSlideshowAndDim();
           return;
@@ -196,7 +230,7 @@ class _SlideshowScreenState extends ConsumerState<SlideshowScreen> {
     } else if (_tapCount == 2) {
       _doubleTapTimer?.cancel();
       _tapCount = 0;
-      Navigator.pop(context); // Menüye dön
+      Navigator.pop(context);
     }
   }
 
