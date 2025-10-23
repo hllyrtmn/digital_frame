@@ -14,6 +14,7 @@ class SettingsScreen extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final alarmActive = ref.watch(alarmNotifierProvider);
     final rootStatus = ref.watch(rootStatusProvider);
+    final deviceAdminStatus = ref.watch(deviceAdminStatusProvider); // ✅ EKLENDI
 
     return Scaffold(
       appBar: AppBar(
@@ -192,14 +193,8 @@ class SettingsScreen extends ConsumerWidget {
               icon: const Icon(Icons.play_arrow),
               onPressed: () async {
                 final powerNotifier = ref.read(powerNotifierProvider.notifier);
-
-                // Ekranı karart
                 await powerNotifier.setBrightness(0.1);
-
-                // 3 saniye bekle
                 await Future.delayed(const Duration(seconds: 3));
-
-                // Geri aç
                 await powerNotifier.setBrightness(1.0);
 
                 if (context.mounted) {
@@ -208,6 +203,102 @@ class SettingsScreen extends ConsumerWidget {
                   );
                 }
               },
+            ),
+          ),
+
+          // ✅ YENİ: Device Admin Section
+          deviceAdminStatus.when(
+            data: (isActive) {
+              return Column(
+                children: [
+                  ListTile(
+                    leading: Icon(
+                      isActive ? Icons.check_circle : Icons.security,
+                      color: isActive ? Colors.green : Colors.orange,
+                    ),
+                    title: const Text('Ekran Kilitleme İzni'),
+                    subtitle: Text(isActive
+                        ? 'Aktif - Ekran kilitlenebilir ✓'
+                        : 'Kapalı - Ekran sadece karartılabilir'),
+                    trailing: isActive
+                        ? null
+                        : ElevatedButton(
+                            onPressed: () async {
+                              await ref
+                                  .read(powerNotifierProvider.notifier)
+                                  .requestDeviceAdmin();
+
+                              // İzin verildikten sonra status'u güncelle
+                              await Future.delayed(const Duration(seconds: 2));
+                              ref.invalidate(deviceAdminStatusProvider);
+                            },
+                            child: const Text('İzin Ver'),
+                          ),
+                  ),
+
+                  // Test butonu - sadece aktifse göster
+                  if (isActive)
+                    ListTile(
+                      leading: const Icon(Icons.lock_outline),
+                      title: const Text('Test: Ekranı Kilitle'),
+                      subtitle: const Text('Ekranı şimdi kilitler'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.play_arrow),
+                        onPressed: () async {
+                          await ref
+                              .read(powerNotifierProvider.notifier)
+                              .lockScreen();
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('✅ Ekran kilitlendi!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+
+                  // Info card
+                  if (!isActive)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Card(
+                        color: Colors.orange[50],
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline,
+                                  color: Colors.orange[700]),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Device Admin izni ile bitiş saatinde ekran kilitlenebilir. '
+                                  'İzin vermezseniz ekran sadece karartılır.',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.orange[900],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+            loading: () => const ListTile(
+              title: Text('Ekran kilitleme durumu kontrol ediliyor...'),
+              trailing: CircularProgressIndicator(),
+            ),
+            error: (e, s) => ListTile(
+              title: const Text('Durum kontrol edilemedi'),
+              subtitle: Text(e.toString()),
             ),
           ),
 

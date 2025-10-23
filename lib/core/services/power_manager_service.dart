@@ -7,7 +7,6 @@ class PowerManagerService {
 
   static const _channel = MethodChannel('com.digitalframe/power');
 
-  // Ekran parlaklığını ayarla (0.0 - 1.0)
   Future<void> setScreenBrightness(double brightness) async {
     try {
       await _channel.invokeMethod('setScreenBrightness', {
@@ -18,7 +17,6 @@ class PowerManagerService {
     }
   }
 
-  // Ekranı kapat (screen off)
   Future<void> turnScreenOff() async {
     try {
       await _channel.invokeMethod('turnScreenOff');
@@ -27,7 +25,6 @@ class PowerManagerService {
     }
   }
 
-  // Ekranı aç (screen on)
   Future<void> turnScreenOn() async {
     try {
       await _channel.invokeMethod('turnScreenOn');
@@ -36,18 +33,6 @@ class PowerManagerService {
     }
   }
 
-  // Do Not Disturb mode aç/kapat
-  Future<void> setDoNotDisturb(bool enable) async {
-    try {
-      await _channel.invokeMethod('setDoNotDisturb', {
-        'enable': enable,
-      });
-    } catch (e) {
-      print('Error setting DND: $e');
-    }
-  }
-
-  // Root kontrolü
   Future<bool> isRooted() async {
     try {
       final result = await _channel.invokeMethod('isRooted');
@@ -58,12 +43,38 @@ class PowerManagerService {
     }
   }
 
-  // Root shutdown (sadece root cihazlar)
   Future<void> shutdownDevice() async {
     try {
       await _channel.invokeMethod('shutdownDevice');
     } catch (e) {
       print('Error shutting down: $e');
+    }
+  }
+
+  // ✅ YENİ: Device Admin metodları
+  Future<bool> isDeviceAdminActive() async {
+    try {
+      final result = await _channel.invokeMethod('isDeviceAdminActive');
+      return result as bool;
+    } catch (e) {
+      print('Error checking device admin: $e');
+      return false;
+    }
+  }
+
+  Future<void> requestDeviceAdmin() async {
+    try {
+      await _channel.invokeMethod('requestDeviceAdmin');
+    } catch (e) {
+      print('Error requesting device admin: $e');
+    }
+  }
+
+  Future<void> lockScreen() async {
+    try {
+      await _channel.invokeMethod('lockScreen');
+    } catch (e) {
+      print('Error locking screen: $e');
     }
   }
 }

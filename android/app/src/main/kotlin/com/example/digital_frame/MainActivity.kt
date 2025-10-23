@@ -2,6 +2,8 @@ package com.example.digital_frame
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -18,6 +20,10 @@ class MainActivity: FlutterActivity() {
     private val ALARM_CHANNEL = "com.digitalframe/alarm"
     private var originalBrightness: Float = -1f
 
+    // ✅ Device Policy Manager
+    private lateinit var devicePolicyManager: DevicePolicyManager
+    private lateinit var adminComponent: ComponentName
+
     companion object {
         const val NOTIFICATION_CHANNEL_ID = "slideshow_channel"
     }
@@ -27,12 +33,16 @@ class MainActivity: FlutterActivity() {
         
         Log.d("DigitalFrame", "✅ MainActivity initialized!")
         
+        // ✅ Device Admin setup
+        devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        adminComponent = ComponentName(this, DeviceAdminReceiver::class.java)
+        
         createNotificationChannel()
         
-        // POWER CHANNEL
+        // POWER CHANNEL - ✅ YENİ METODLAR EKLENDİ
         Log.d("DigitalFrame", "📡 Setting up POWER channel...")
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, POWER_CHANNEL).setMethodCallHandler { call, result ->
-            Log.d("DigitalFrame", "📞 Method called: ${call.method}")
+            Log.d("DigitalFrame", "📞 POWER Method called: ${call.method}")
             when (call.method) {
                 "setScreenBrightness" -> {
                     val brightness = call.argument<Double>("brightness") ?: 1.0
@@ -54,6 +64,22 @@ class MainActivity: FlutterActivity() {
                 }
                 "shutdownDevice" -> {
                     shutdownDevice()
+                    result.success(null)
+                }
+                // ✅ YENİ: Device Admin metodları
+                "isDeviceAdminActive" -> {
+                    val active = devicePolicyManager.isAdminActive(adminComponent)
+                    Log.d("DigitalFrame", "Device Admin active: $active")
+                    result.success(active)
+                }
+                "requestDeviceAdmin" -> {
+                    Log.d("DigitalFrame", "🔐 Requesting Device Admin...")
+                    requestDeviceAdmin()
+                    result.success(null)
+                }
+                "lockScreen" -> {
+                    Log.d("DigitalFrame", "🔒 Locking screen...")
+                    lockScreen()
                     result.success(null)
                 }
                 else -> {
@@ -87,6 +113,41 @@ class MainActivity: FlutterActivity() {
         }
         
         Log.d("DigitalFrame", "✅ All channels configured!")
+    }
+
+    // ✅ Device Admin izni iste
+    private fun requestDeviceAdmin() {
+        try {
+            if (!devicePolicyManager.isAdminActive(adminComponent)) {
+                Log.d("DigitalFrame", "📱 Opening Device Admin permission screen...")
+                val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                    putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                    putExtra(
+                        DevicePolicyManager.EXTRA_ADD_EXPLANATION, 
+                        "Digital Frame uygulaması ekranı kilitlemek için Device Admin izni gerektiriyor."
+                    )
+                }
+                startActivity(intent)
+            } else {
+                Log.d("DigitalFrame", "✅ Device Admin already active")
+            }
+        } catch (e: Exception) {
+            Log.e("DigitalFrame", "❌ Error requesting device admin: ${e.message}")
+        }
+    }
+
+    // ✅ Ekranı kilitle
+    private fun lockScreen() {
+        try {
+            if (devicePolicyManager.isAdminActive(adminComponent)) {
+                devicePolicyManager.lockNow()
+                Log.d("DigitalFrame", "🔒 Screen locked successfully")
+            } else {
+                Log.e("DigitalFrame", "❌ Device Admin not active, cannot lock screen")
+            }
+        } catch (e: Exception) {
+            Log.e("DigitalFrame", "❌ Error locking screen: ${e.message}")
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -155,7 +216,16 @@ class MainActivity: FlutterActivity() {
     private fun handleStopAlarm(useRootShutdown: Boolean) {
         Log.d("DigitalFrame", "⏹️ STOP ALARM - Handling...")
         
-        turnScreenOff()
+        // ✅ Device Admin varsa ekranı kilitle
+        if (devicePolicyManager.isAdminActive(adminComponent)) {
+            Log.d("DigitalFrame", "🔒 Device Admin active, locking screen...")
+            lockScreen()
+        } else {
+            // Yoksa sadece karart
+            Log.d("DigitalFrame", "💡 Device Admin not active, dimming screen...")
+            turnScreenOff()
+        }
+        
         showStopNotification()
         
         if (useRootShutdown) {
@@ -182,10 +252,16 @@ class MainActivity: FlutterActivity() {
     private fun showStopNotification() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         
+        val contentText = if (devicePolicyManager.isAdminActive(adminComponent)) {
+            "Ekran kilitlendi. Yarın görüşürüz! 🔒"
+        } else {
+            "Ekran karartıldı. Yarın görüşürüz! 😴"
+        }
+        
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("Digital Frame")
-            .setContentText("Ekran kapatıldı. Yarın görüşürüz! 😴")
+            .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setAutoCancel(true)
             .build()
@@ -210,7 +286,7 @@ class MainActivity: FlutterActivity() {
         try {
             setScreenBrightness(0.01f)
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            Log.d("DigitalFrame", "✅ Screen turned off")
+            Log.d("DigitalFrame", "✅ Screen dimmed")
         } catch (e: Exception) {
             Log.e("DigitalFrame", "❌ Error turning screen off: ${e.message}")
         }
