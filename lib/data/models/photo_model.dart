@@ -1,6 +1,5 @@
 import 'package:hive/hive.dart';
 
-// Bu annotation ile Hive adapter generate edilecek
 part 'photo_model.g.dart';
 
 @HiveType(typeId: 0)
@@ -24,7 +23,6 @@ class PhotoModel extends HiveObject {
     this.order = 0,
   });
 
-  // Factory constructor for easy creation
   factory PhotoModel.create(String path) {
     return PhotoModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -33,7 +31,6 @@ class PhotoModel extends HiveObject {
     );
   }
 
-  // CopyWith method (Angular'daki immutability gibi)
   PhotoModel copyWith({
     String? id,
     String? path,

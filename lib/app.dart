@@ -20,32 +20,27 @@ class _DigitalFrameAppState extends ConsumerState<DigitalFrameApp> {
   void initState() {
     super.initState();
 
-    // Alarm kanalını dinle
     const platform = MethodChannel('com.digitalframe/alarm');
     platform.setMethodCallHandler((call) async {
-      print('📞 Flutter received: ${call.method}');
-
       if (call.method == 'autoStartSlideshow') {
-        print('🎬 Auto-starting slideshow in Flutter!');
-
-        // Fotoğraf var mı kontrol et
         final photos = ref.read(photoProvider);
+
         if (photos.isEmpty) {
-          print('❌ No photos to show');
           return;
         }
 
-        // Slideshow'u aç
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 800));
+
         final context = navigatorKey.currentContext;
         if (context != null && mounted) {
-          print('✅ Navigating to slideshow...');
-          // ignore: use_build_context_synchronously
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const SlideshowScreen()),
-            (route) => false,
+            MaterialPageRoute(
+              builder: (_) => const SlideshowScreen(),
+              settings: const RouteSettings(name: '/slideshow'),
+            ),
+            (route) => false, // Tüm route'ları temizle
           );
-        }
+        } else {}
       }
     });
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/services/alarm_service.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/alarm_provider.dart';
 import '../../providers/power_provider.dart';
@@ -22,10 +23,7 @@ class SettingsScreen extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          // Slideshow Settings Section
           _buildSectionHeader(context, 'Slayt Gösterisi'),
-
-          // Transition Duration
           ListTile(
             title: const Text('Geçiş Süresi'),
             subtitle: Text('${settings.transitionDuration} saniye'),
@@ -45,8 +43,6 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
-
-          // Transition Effect
           ListTile(
             title: const Text('Geçiş Efekti'),
             subtitle: Text(_getEffectName(settings.transitionEffect)),
@@ -71,12 +67,8 @@ class SettingsScreen extends ConsumerWidget {
               }).toList(),
             ),
           ),
-
           const Divider(height: 32),
-
-          // Scheduling Section
           _buildSectionHeader(context, 'Zamanlama'),
-
           SwitchListTile(
             title: const Text('Otomatik Başlat/Durdur'),
             subtitle: Text(alarmActive
@@ -88,11 +80,9 @@ class SettingsScreen extends ConsumerWidget {
                   .read(settingsProvider.notifier)
                   .updateSchedule(autoStartEnabled: value);
 
-              // Alarm'ları güncelle
               await ref.read(alarmNotifierProvider.notifier).updateAlarms();
             },
           ),
-
           if (settings.autoStartEnabled) ...[
             ListTile(
               leading: const Icon(Icons.wb_sunny_outlined),
@@ -111,7 +101,6 @@ class SettingsScreen extends ConsumerWidget {
                             '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
                       );
 
-                  // Alarm'ları güncelle
                   await ref.read(alarmNotifierProvider.notifier).updateAlarms();
                 }
               },
@@ -133,13 +122,10 @@ class SettingsScreen extends ConsumerWidget {
                             '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
                       );
 
-                  // Alarm'ları güncelle
                   await ref.read(alarmNotifierProvider.notifier).updateAlarms();
                 }
               },
             ),
-
-            // Alarm Status Card
             if (alarmActive)
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -179,12 +165,8 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
           ],
-
           const Divider(height: 32),
-
-          // Power Management Section
           _buildSectionHeader(context, 'Güç Yönetimi'),
-
           ListTile(
             leading: const Icon(Icons.brightness_6),
             title: const Text('Test: Ekranı Karart'),
@@ -205,8 +187,6 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
-
-          // ✅ YENİ: Device Admin Section
           deviceAdminStatus.when(
             data: (isActive) {
               return Column(
@@ -228,15 +208,12 @@ class SettingsScreen extends ConsumerWidget {
                                   .read(powerNotifierProvider.notifier)
                                   .requestDeviceAdmin();
 
-                              // İzin verildikten sonra status'u güncelle
                               await Future.delayed(const Duration(seconds: 2));
                               ref.invalidate(deviceAdminStatusProvider);
                             },
                             child: const Text('İzin Ver'),
                           ),
                   ),
-
-                  // Test butonu - sadece aktifse göster
                   if (isActive)
                     ListTile(
                       leading: const Icon(Icons.lock_outline),
@@ -260,8 +237,6 @@ class SettingsScreen extends ConsumerWidget {
                         },
                       ),
                     ),
-
-                  // Info card
                   if (!isActive)
                     Padding(
                       padding: const EdgeInsets.all(16),
@@ -301,12 +276,8 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: Text(e.toString()),
             ),
           ),
-
           const Divider(height: 32),
-
-          // Root Features Section
           _buildSectionHeader(context, 'Gelişmiş Özellikler'),
-
           rootStatus.when(
             data: (isRooted) {
               return Column(
@@ -390,10 +361,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: Text(e.toString()),
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // Info Card
           Padding(
             padding: const EdgeInsets.all(16),
             child: Card(
@@ -425,12 +393,8 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 32),
-
           const Divider(height: 32),
-
-          // 🧪 DEBUG TEST SECTION
           Padding(
             padding: const EdgeInsets.all(16),
             child: Card(
@@ -454,8 +418,6 @@ class SettingsScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-
-                    // Test Start
                     ElevatedButton.icon(
                       onPressed: () async {
                         const platform =
@@ -489,10 +451,50 @@ class SettingsScreen extends ConsumerWidget {
                         foregroundColor: Colors.white,
                       ),
                     ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        await AlarmService.startSlideshowCallback();
 
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content:
+                                  Text('✅ START callback manuel tetiklendi!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.science),
+                      label: const Text('TEST: Start Callback Manuel Tetikle'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
                     const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        await AlarmService.stopSlideshowCallback();
 
-                    // Test Stop
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content:
+                                  Text('✅ STOP callback manuel tetiklendi!'),
+                              backgroundColor: Colors.blue,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.science),
+                      label: const Text('TEST: Stop Callback Manuel Tetikle'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     ElevatedButton.icon(
                       onPressed: () async {
                         const platform =
@@ -528,7 +530,6 @@ class SettingsScreen extends ConsumerWidget {
                         foregroundColor: Colors.white,
                       ),
                     ),
-
                     const SizedBox(height: 12),
                     Text(
                       'Bu butonlar alarm\'ın yapacağı işlemi manuel test eder. '
@@ -543,7 +544,6 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 32),
         ],
       ),

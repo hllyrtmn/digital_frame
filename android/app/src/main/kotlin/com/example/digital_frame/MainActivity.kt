@@ -1,5 +1,7 @@
 package com.example.digital_frame
 
+import android.app.AlarmManager
+import android.app.KeyguardManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.admin.DevicePolicyManager
@@ -7,6 +9,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
@@ -14,35 +18,130 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.util.Timer
+import java.util.TimerTask
 
 class MainActivity: FlutterActivity() {
     private val POWER_CHANNEL = "com.digitalframe/power"
     private val ALARM_CHANNEL = "com.digitalframe/alarm"
     private var originalBrightness: Float = -1f
 
-    // ✅ Device Policy Manager
     private lateinit var devicePolicyManager: DevicePolicyManager
     private lateinit var adminComponent: ComponentName
+    private lateinit var keyguardManager: KeyguardManager
+    
+
+    private var sharedPrefsTimer: Timer? = null
 
     companion object {
         const val NOTIFICATION_CHANNEL_ID = "slideshow_channel"
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        startSharedPrefsPolling()
+        Log.d("DigitalFrame", "🎬 ════════════════════════════════════════")
+        Log.d("DigitalFrame", "🎬 MainActivity onCreate called")
+        Log.d("DigitalFrame", "🎬 ════════════════════════════════════════")
+        
+        keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        handleIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d("DigitalFrame", "▶️ ════════════════════════════════════════")
+        Log.d("DigitalFrame", "▶️ MainActivity onResume called")
+        Log.d("DigitalFrame", "▶️ ════════════════════════════════════════")
+        
+
+        startSharedPrefsPolling()
+        
+        handleIntent(intent)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.d("DigitalFrame", "⏸️ onPause called")
+
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        sharedPrefsTimer?.cancel()
+        Log.d("DigitalFrame", "⏹️ MainActivity destroyed, timer cancelled")
+    }
+
+
+    private fun startSharedPrefsPolling() {
+
+        sharedPrefsTimer?.cancel()
+        
+        sharedPrefsTimer = Timer().apply {
+            scheduleAtFixedRate(object : TimerTask() {
+                override fun run() {
+                    checkAlarmFlags()
+                }
+            }, 0, 1000) // İlk kontrolü hemen yap, sonra her 2 saniyede
+        }
+        
+        Log.d("DigitalFrame", "⏱️ ════════════════════════════════════════")
+        Log.d("DigitalFrame", "⏱️ SharedPreferences polling STARTED")
+        Log.d("DigitalFrame", "⏱️ Checking every 2 seconds")
+        Log.d("DigitalFrame", "⏱️ ════════════════════════════════════════")
+    }
+
+    private fun checkAlarmFlags() {
+        val prefs = getSharedPreferences("digital_frame_prefs", Context.MODE_PRIVATE)
+        val alarmAction = prefs.getString("alarm_action", null)
+        
+        if (alarmAction != null) {
+            Log.d("DigitalFrame", "🚨 ════════════════════════════════════════")
+            Log.d("DigitalFrame", "🚨 ALARM FLAG DETECTED!")
+            Log.d("DigitalFrame", "🚨 Action: $alarmAction")
+            Log.d("DigitalFrame", "🚨 ════════════════════════════════════════")
+            
+            when (alarmAction) {
+                "START" -> {
+                    runOnUiThread {
+                        handleStartAlarm()
+                    }
+                    prefs.edit().remove("alarm_action").apply()
+                    Log.d("DigitalFrame", "✅ START flag cleared from SharedPreferences")
+                }
+                "STOP" -> {
+                    val useRootShutdown = prefs.getBoolean("use_root_shutdown", false)
+                    runOnUiThread {
+                        handleStopAlarm(useRootShutdown)
+                    }
+                    prefs.edit().remove("alarm_action").apply()
+                    prefs.edit().remove("use_root_shutdown").apply()
+                    Log.d("DigitalFrame", "✅ STOP flag cleared from SharedPreferences")
+                }
+                else -> {
+                    Log.d("DigitalFrame", "⚠️ Unknown alarm action: $alarmAction")
+                }
+            }
+        }
+
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
-        Log.d("DigitalFrame", "✅ MainActivity initialized!")
+        Log.d("DigitalFrame", "✅ MainActivity configureFlutterEngine called")
         
-        // ✅ Device Admin setup
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         adminComponent = ComponentName(this, DeviceAdminReceiver::class.java)
         
+
+        checkAlarmPermissions()
+        
         createNotificationChannel()
         
-        // POWER CHANNEL - ✅ YENİ METODLAR EKLENDİ
-        Log.d("DigitalFrame", "📡 Setting up POWER channel...")
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, POWER_CHANNEL).setMethodCallHandler { call, result ->
-            Log.d("DigitalFrame", "📞 POWER Method called: ${call.method}")
             when (call.method) {
                 "setScreenBrightness" -> {
                     val brightness = call.argument<Double>("brightness") ?: 1.0
@@ -59,67 +158,67 @@ class MainActivity: FlutterActivity() {
                 }
                 "isRooted" -> {
                     val rooted = isDeviceRooted()
-                    Log.d("DigitalFrame", "Root status: $rooted")
                     result.success(rooted)
                 }
                 "shutdownDevice" -> {
                     shutdownDevice()
                     result.success(null)
                 }
-                // ✅ YENİ: Device Admin metodları
                 "isDeviceAdminActive" -> {
                     val active = devicePolicyManager.isAdminActive(adminComponent)
-                    Log.d("DigitalFrame", "Device Admin active: $active")
                     result.success(active)
                 }
                 "requestDeviceAdmin" -> {
-                    Log.d("DigitalFrame", "🔐 Requesting Device Admin...")
                     requestDeviceAdmin()
                     result.success(null)
                 }
                 "lockScreen" -> {
-                    Log.d("DigitalFrame", "🔒 Locking screen...")
                     lockScreen()
                     result.success(null)
                 }
-                else -> {
-                    Log.d("DigitalFrame", "❌ Unknown POWER method: ${call.method}")
-                    result.notImplemented()
-                }
+                else -> result.notImplemented()
             }
         }
 
-        // ALARM CHANNEL
-        Log.d("DigitalFrame", "📡 Setting up ALARM channel...")
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ALARM_CHANNEL).setMethodCallHandler { call, result ->
-            Log.d("DigitalFrame", "🔔 ALARM Method called: ${call.method}")
             when (call.method) {
                 "onStartAlarm" -> {
-                    Log.d("DigitalFrame", "🎬 onStartAlarm received!")
                     handleStartAlarm()
                     result.success(null)
                 }
                 "onStopAlarm" -> {
-                    Log.d("DigitalFrame", "⏹️ onStopAlarm received!")
                     val useRootShutdown = call.argument<Boolean>("useRootShutdown") ?: false
                     handleStopAlarm(useRootShutdown)
                     result.success(null)
                 }
-                else -> {
-                    Log.d("DigitalFrame", "❌ Unknown ALARM method: ${call.method}")
-                    result.notImplemented()
-                }
+                else -> result.notImplemented()
             }
         }
-        
-        Log.d("DigitalFrame", "✅ All channels configured!")
     }
 
-    // ✅ Device Admin izni iste
+    private fun checkAlarmPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                Log.e("DigitalFrame", "❌ SCHEDULE_EXACT_ALARM permission NOT granted!")
+                Log.e("DigitalFrame", "📱 Opening alarm permission settings...")
+                
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e("DigitalFrame", "❌ Error opening alarm settings: ${e.message}")
+                }
+            } else {
+                Log.d("DigitalFrame", "✅ SCHEDULE_EXACT_ALARM permission granted")
+            }
+        }
+    }
+
     private fun requestDeviceAdmin() {
         try {
             if (!devicePolicyManager.isAdminActive(adminComponent)) {
-                Log.d("DigitalFrame", "📱 Opening Device Admin permission screen...")
                 val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
                     putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
                     putExtra(
@@ -128,15 +227,12 @@ class MainActivity: FlutterActivity() {
                     )
                 }
                 startActivity(intent)
-            } else {
-                Log.d("DigitalFrame", "✅ Device Admin already active")
             }
         } catch (e: Exception) {
             Log.e("DigitalFrame", "❌ Error requesting device admin: ${e.message}")
         }
     }
 
-    // ✅ Ekranı kilitle
     private fun lockScreen() {
         try {
             if (devicePolicyManager.isAdminActive(adminComponent)) {
@@ -152,24 +248,31 @@ class MainActivity: FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        Log.d("DigitalFrame", "🔄 onNewIntent called")
         setIntent(intent)
         handleIntent(intent)
     }
 
-    override fun onResume() {
-        super.onResume()
-        handleIntent(intent)
-    }
-
     private fun handleIntent(intent: Intent?) {
+        Log.d("DigitalFrame", "🔍 handleIntent called")
         intent?.let {
             if (it.getBooleanExtra("AUTO_START_SLIDESHOW", false)) {
-                Log.d("DigitalFrame", "🎬 Auto-starting slideshow from alarm!")
+                Log.d("DigitalFrame", "🎬 AUTO_START_SLIDESHOW flag detected in intent!")
                 it.removeExtra("AUTO_START_SLIDESHOW")
                 
                 flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
-                    MethodChannel(messenger, ALARM_CHANNEL).invokeMethod("autoStartSlideshow", null)
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        MethodChannel(messenger, ALARM_CHANNEL).invokeMethod("autoStartSlideshow", null)
+                    }, 500)
                 }
+            }
+            
+            if (it.getBooleanExtra("AUTO_STOP_SLIDESHOW", false)) {
+                Log.d("DigitalFrame", "⏹️ AUTO_STOP_SLIDESHOW flag detected in intent!")
+                it.removeExtra("AUTO_STOP_SLIDESHOW")
+                
+                val useRootShutdown = it.getBooleanExtra("useRootShutdown", false)
+                handleStopAlarm(useRootShutdown)
             }
         }
     }
@@ -186,16 +289,44 @@ class MainActivity: FlutterActivity() {
             
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
-            Log.d("DigitalFrame", "✅ Notification channel created")
         }
     }
 
     private fun handleStartAlarm() {
-        Log.d("DigitalFrame", "🎬 START ALARM - Handling...")
+        Log.d("DigitalFrame", "🎬 ════════════════════════════════════════")
+        Log.d("DigitalFrame", "🎬 START ALARM HANDLER")
+        Log.d("DigitalFrame", "🎬 ════════════════════════════════════════")
         
         turnScreenOn()
-        openAppAndStartSlideshow()
+        unlockScreen()
         showStartNotification()
+        openAppAndStartSlideshow()
+    }
+
+    private fun unlockScreen() {
+        try {
+            Log.d("DigitalFrame", "🔓 Unlocking screen...")
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    keyguardManager.requestDismissKeyguard(this, null)
+                }
+            }
+            
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            )
+            
+            Log.d("DigitalFrame", "✅ Screen unlock flags added")
+        } catch (e: Exception) {
+            Log.e("DigitalFrame", "❌ Error unlocking screen: ${e.message}")
+        }
     }
 
     private fun openAppAndStartSlideshow() {
@@ -203,25 +334,29 @@ class MainActivity: FlutterActivity() {
             val intent = Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or 
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                 putExtra("AUTO_START_SLIDESHOW", true)
             }
+            
             startActivity(intent)
-            Log.d("DigitalFrame", "✅ App opened with slideshow flag")
+            setIntent(intent)
+            
+            Log.d("DigitalFrame", "✅ App opening intent sent")
         } catch (e: Exception) {
             Log.e("DigitalFrame", "❌ Error opening app: ${e.message}")
         }
     }
 
     private fun handleStopAlarm(useRootShutdown: Boolean) {
-        Log.d("DigitalFrame", "⏹️ STOP ALARM - Handling...")
+        Log.d("DigitalFrame", "⏹️ ════════════════════════════════════════")
+        Log.d("DigitalFrame", "⏹️ STOP ALARM HANDLER")
+        Log.d("DigitalFrame", "⏹️ ════════════════════════════════════════")
         
-        // ✅ Device Admin varsa ekranı kilitle
         if (devicePolicyManager.isAdminActive(adminComponent)) {
             Log.d("DigitalFrame", "🔒 Device Admin active, locking screen...")
             lockScreen()
         } else {
-            // Yoksa sadece karart
             Log.d("DigitalFrame", "💡 Device Admin not active, dimming screen...")
             turnScreenOff()
         }
@@ -246,7 +381,6 @@ class MainActivity: FlutterActivity() {
             .build()
         
         notificationManager.notify(100, notification)
-        Log.d("DigitalFrame", "✅ Start notification shown")
     }
 
     private fun showStopNotification() {
@@ -267,7 +401,6 @@ class MainActivity: FlutterActivity() {
             .build()
         
         notificationManager.notify(101, notification)
-        Log.d("DigitalFrame", "✅ Stop notification shown")
     }
 
     private fun setScreenBrightness(brightness: Float) {
@@ -276,7 +409,6 @@ class MainActivity: FlutterActivity() {
             if (originalBrightness < 0) originalBrightness = layoutParams.screenBrightness
             layoutParams.screenBrightness = brightness
             window.attributes = layoutParams
-            Log.d("DigitalFrame", "✅ Brightness set to: $brightness")
         } catch (e: Exception) {
             Log.e("DigitalFrame", "❌ Error setting brightness: ${e.message}")
         }
@@ -286,7 +418,6 @@ class MainActivity: FlutterActivity() {
         try {
             setScreenBrightness(0.01f)
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            Log.d("DigitalFrame", "✅ Screen dimmed")
         } catch (e: Exception) {
             Log.e("DigitalFrame", "❌ Error turning screen off: ${e.message}")
         }
@@ -311,8 +442,6 @@ class MainActivity: FlutterActivity() {
                 setShowWhenLocked(true)
                 setTurnScreenOn(true)
             }
-            
-            Log.d("DigitalFrame", "✅ Screen turned on")
         } catch (e: Exception) {
             Log.e("DigitalFrame", "❌ Error turning screen on: ${e.message}")
         }
@@ -326,7 +455,6 @@ class MainActivity: FlutterActivity() {
     private fun shutdownDevice() {
         try {
             Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot -p"))
-            Log.d("DigitalFrame", "✅ Shutdown command executed")
         } catch (e: Exception) {
             Log.e("DigitalFrame", "❌ Error shutting down: ${e.message}")
         }

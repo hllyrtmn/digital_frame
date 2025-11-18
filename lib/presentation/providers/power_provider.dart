@@ -8,7 +8,6 @@ final rootStatusProvider = FutureProvider<bool>((ref) async {
   return await powerService.isRooted();
 });
 
-// ✅ YENİ: Device Admin status provider
 final deviceAdminStatusProvider = FutureProvider<bool>((ref) async {
   final powerService = ref.watch(powerServiceProvider);
   return await powerService.isDeviceAdminActive();
@@ -44,7 +43,6 @@ class PowerNotifier extends StateNotifier<Map<String, dynamic>> {
     await _powerService.shutdownDevice();
   }
 
-  // ✅ YENİ: Device Admin metodları
   Future<void> requestDeviceAdmin() async {
     await _powerService.requestDeviceAdmin();
   }

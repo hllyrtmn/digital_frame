@@ -2,10 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/settings_model.dart';
 import '../../data/datasources/local/settings_local_datasource.dart';
 
-// DataSource provider
 final settingsDataSourceProvider = Provider((ref) => SettingsLocalDataSource());
 
-// Settings provider
 class SettingsNotifier extends StateNotifier<SettingsModel> {
   final SettingsLocalDataSource _dataSource;
 
@@ -50,7 +48,6 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
   }
 }
 
-// Provider export
 final settingsProvider =
     StateNotifierProvider<SettingsNotifier, SettingsModel>((ref) {
   final dataSource = ref.watch(settingsDataSourceProvider);

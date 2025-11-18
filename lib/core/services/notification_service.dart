@@ -29,22 +29,16 @@ class NotificationService {
 
   Future<void> _requestPermission() async {
     final status = await Permission.notification.request();
-    if (status.isDenied) {
-      print('Notification permission denied');
-    }
+    if (status.isDenied) {}
   }
 
   void _onNotificationTap(NotificationResponse response) {
-    print('Notification tapped: ${response.payload}');
-
     if (response.payload == 'start_slideshow') {
-      // Slideshow'u başlat
       _openSlideshow();
     }
   }
 
   void _openSlideshow() {
-    // Global navigator key kullanarak slideshow'u aç
     final context = navigatorKey.currentContext;
     if (context != null) {
       Navigator.pushNamed(context, '/slideshow');

@@ -29,7 +29,7 @@ android {
 
     buildTypes {
         release {
-            // Minify'ı kapat - APK biraz büyük olur ama sorunsuz çalışır
+
             minifyEnabled false
             shrinkResources false
             

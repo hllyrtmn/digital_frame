@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   
+  
   # State Management
   flutter_riverpod: ^2.5.1
   

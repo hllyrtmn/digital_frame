@@ -3,19 +3,15 @@ import '../../core/services/alarm_service.dart';
 import '../../core/services/notification_service.dart';
 import 'settings_provider.dart';
 
-// Alarm service provider
 final alarmServiceProvider = Provider((ref) => AlarmService());
 
-// Alarm status provider
 final alarmStatusProvider = StateProvider<bool>((ref) => false);
 
-// Initialize services provider
 final servicesInitProvider = FutureProvider<void>((ref) async {
   await NotificationService().initialize();
   await AlarmService().initialize();
 });
 
-// Schedule/Cancel alarms based on settings
 class AlarmNotifier extends StateNotifier<bool> {
   final AlarmService _alarmService;
   final Ref _ref;
@@ -28,7 +24,6 @@ class AlarmNotifier extends StateNotifier<bool> {
     if (settings.autoStartEnabled &&
         settings.startTime != null &&
         settings.endTime != null) {
-      // Schedule alarms - useRootShutdown parametresini ekle
       await _alarmService.scheduleAlarms(
         startTime: settings.startTime!,
         endTime: settings.endTime!,
@@ -36,7 +31,6 @@ class AlarmNotifier extends StateNotifier<bool> {
       );
       state = true;
     } else {
-      // Cancel alarms
       await _alarmService.cancelAlarms();
       state = false;
     }
